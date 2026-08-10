@@ -56,6 +56,7 @@
     --border:#D8D2BF;
     --accent:#D9601C;      /* 安全橘 - 主要動作 */
     --accent-ink:#FFFFFF;
+    --accent-soft:#FBE6D8;
     --teal:#1F6F68;        /* 測量藍綠 - 設施/標籤 */
     --teal-soft:#E4EEEC;
     --danger:#B23B3B;
@@ -120,15 +121,35 @@
   .row > *{flex:1;}
   .field-group{margin-bottom:12px;}
 
-  /* ---------- 設施類型選擇 ---------- */
-  .type-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px;}
+  /* ---------- 設施類型選擇(兩層:大分類→排水溝斷面子類) ---------- */
+  .type-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:14px;}
   .type-card{
     border:1.5px solid var(--border); border-radius:8px; background:#fff;
     padding:10px 4px 8px; text-align:center; cursor:pointer;
   }
-  .type-card.active{border-color:var(--teal); background:var(--teal-soft);}
   .type-card svg{width:44px; height:32px;}
   .type-card .lbl{display:block; font-size:.76rem; font-weight:600; margin-top:4px;}
+
+  /* 第一層:大分類(排水溝/集水井/管涵/沉砂滯洪池) - 選中用主要動作橘色,較顯眼 */
+  #groupGrid .type-card{border-width:2px; padding:14px 6px 11px;}
+  #groupGrid .type-card svg{width:50px; height:36px;}
+  #groupGrid .type-card .lbl{font-size:.84rem; font-weight:700;}
+  #groupGrid .type-card.active{border-color:var(--accent); background:var(--accent-soft);}
+
+  /* 第二層:排水溝斷面子類 - 包在虛線框內,視覺上明顯是「排水溝」底下展開的子選項,選中用測量藍綠 */
+  .subtype-wrap{
+    display:none; border:1.5px dashed var(--teal); border-radius:8px;
+    background:var(--teal-soft); padding:10px 8px 8px; margin:-4px 0 14px;
+  }
+  .subtype-label{
+    font-size:.72rem; font-weight:700; color:var(--teal); margin-bottom:8px;
+    display:flex; align-items:center; gap:4px; letter-spacing:.02em;
+  }
+  .subtype-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:7px;}
+  .subtype-grid .type-card{padding:8px 4px 6px; background:#fff;}
+  .subtype-grid .type-card svg{width:36px; height:26px;}
+  .subtype-grid .type-card .lbl{font-size:.72rem;}
+  .subtype-grid .type-card.active{border-color:var(--teal); background:var(--teal-soft);}
 
   .dim-field{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
   .dim-field label{width:96px; font-size:.82rem; color:var(--ink-soft); flex-shrink:0;}
@@ -175,8 +196,6 @@
   .toolbar{display:flex; gap:8px; margin-bottom:12px;}
   .toolbar input{flex:1;}
   .toolbar .btn-outline{flex:0 0 auto; padding:10px 12px;}
-  .filter-chips{display:flex; gap:6px; margin-bottom:12px; overflow-x:auto;}
-  .filter-chips .chip{white-space:nowrap;}
 
   .site-group{margin-bottom:20px;}
   .site-group-header{
@@ -285,7 +304,11 @@
         <input type="text" id="f-code" placeholder="例如:NU1、A1">
       </div>
       <label class="field-label">設施類型</label>
-      <div class="type-grid" id="typeGrid"></div>
+      <div class="type-grid" id="groupGrid"></div>
+      <div class="subtype-wrap" id="subGridWrap">
+        <div class="subtype-label">↳ 排水溝斷面類型</div>
+        <div class="subtype-grid" id="subGrid"></div>
+      </div>
       <div id="dimFields"></div>
     </div>
 
@@ -319,7 +342,6 @@
       <input type="text" id="searchBox" placeholder="搜尋案件名稱 / 備註…" oninput="renderList()">
       <button class="btn-outline" onclick="exportCSV()">⭳ CSV</button>
     </div>
-    <div class="filter-chips" id="filterChips"></div>
     <div id="recordList"></div>
   </section>
 
@@ -487,12 +509,33 @@ const FACILITY_TYPES = {
 function fmt(v){ if(v===undefined||v===null||v==="") return "-"; const n = Number(v); return Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(2))); }
 
 /* ---------------------------------------------------------------------
+   設施大分類(供設施類型按鈕使用):排水溝底下再分四種斷面,其餘大類各對應
+   單一設施類型,選了就直接帶出對應欄位,不用再選子類型
+--------------------------------------------------------------------- */
+const DITCH_GROUP_ICON = `<svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M10 10 L14 36 L46 36 L50 10" stroke="#1F6F68" stroke-width="2.5" stroke-linejoin="round"/>
+  <line x1="10" y1="4" x2="50" y2="4" stroke="#1F6F68" stroke-width="1"/>
+  <line x1="10" y1="1" x2="10" y2="7" stroke="#1F6F68" stroke-width="1"/>
+  <line x1="50" y1="1" x2="50" y2="7" stroke="#1F6F68" stroke-width="1"/>
+</svg>`;
+const TYPE_GROUPS = [
+  { key: "ditch",   label: "排水溝",    icon: DITCH_GROUP_ICON, sub: ["rect","trapezoid","parabolic","lshape"] },
+  { key: "sump",    label: "集水井",    sub: ["sump"] },
+  { key: "culvert", label: "管涵",      sub: ["culvert"] },
+  { key: "pond",    label: "沉砂滯洪池", sub: ["pond"] }
+];
+function findGroupKey(typeKey){
+  const g = TYPE_GROUPS.find(g => g.sub.includes(typeKey));
+  return g ? g.key : null;
+}
+
+/* ---------------------------------------------------------------------
    狀態
 --------------------------------------------------------------------- */
 let records = {};
 let currentType = null;
+let currentGroup = null;
 let pendingPhotos = [];
-let activeFilterType = null;
 let editingId = null;
 let gpsData = null;
 
@@ -604,19 +647,41 @@ function updateSessionBar(){
 }
 
 /* ---------------------------------------------------------------------
-   類型選擇 + 尺寸欄位渲染
+   類型選擇(大分類→排水溝子類型) + 尺寸欄位渲染
 --------------------------------------------------------------------- */
 function buildTypeGrid(){
-  const grid = document.getElementById("typeGrid");
-  grid.innerHTML = Object.entries(FACILITY_TYPES).map(([key,t]) => `
-    <div class="type-card" id="type-${key}" onclick="selectType('${key}')">
-      ${t.icon}<span class="lbl">${t.label}</span>
-    </div>`).join("");
+  const grid = document.getElementById("groupGrid");
+  grid.innerHTML = TYPE_GROUPS.map(g => {
+    const icon = g.sub.length > 1 ? g.icon : FACILITY_TYPES[g.sub[0]].icon;
+    return `<div class="type-card" id="group-${g.key}" onclick="selectGroup('${g.key}')">${icon}<span class="lbl">${g.label}</span></div>`;
+  }).join("");
+}
+function selectGroup(gkey, presetType){
+  currentGroup = gkey;
+  document.querySelectorAll("#groupGrid .type-card").forEach(el => el.classList.remove("active"));
+  document.getElementById("group-"+gkey).classList.add("active");
+  const g = TYPE_GROUPS.find(x => x.key === gkey);
+  const subWrap = document.getElementById("subGridWrap");
+  const subGrid = document.getElementById("subGrid");
+  if(g.sub.length > 1){
+    subWrap.style.display = "block";
+    subGrid.innerHTML = g.sub.map(key => {
+      const t = FACILITY_TYPES[key];
+      return `<div class="type-card" id="type-${key}" onclick="selectType('${key}')">${t.icon}<span class="lbl">${t.label}</span></div>`;
+    }).join("");
+    if(presetType){ selectType(presetType); }
+    else { currentType = null; document.getElementById("dimFields").innerHTML = ""; }
+  } else {
+    subWrap.style.display = "none";
+    subGrid.innerHTML = "";
+    selectType(g.sub[0]);
+  }
 }
 function selectType(key){
   currentType = key;
-  document.querySelectorAll(".type-card").forEach(el => el.classList.remove("active"));
-  document.getElementById("type-"+key).classList.add("active");
+  document.querySelectorAll("#subGrid .type-card").forEach(el => el.classList.remove("active"));
+  const subEl = document.getElementById("type-"+key);
+  if(subEl) subEl.classList.add("active");
   const t = FACILITY_TYPES[key];
   const step = t.unit === "cm" ? "1" : "0.01";
   document.getElementById("dimFields").innerHTML = t.fields.map(f => `
@@ -727,7 +792,10 @@ function resetForm(switchToList, restoreSavedSession){
   pendingPhotos = [];
   renderThumbs();
   currentType = null;
+  currentGroup = null;
   document.querySelectorAll(".type-card").forEach(el => el.classList.remove("active"));
+  document.getElementById("subGridWrap").style.display = "none";
+  document.getElementById("subGrid").innerHTML = "";
   document.getElementById("dimFields").innerHTML = "";
   editingId = null;
   document.getElementById("saveBtn").textContent = "儲存記錄";
@@ -779,20 +847,8 @@ function saveRecord(){
 }
 
 /* ---------------------------------------------------------------------
-   列表 / 搜尋 / 篩選
+   列表 / 搜尋
 --------------------------------------------------------------------- */
-function buildFilterChips(){
-  const wrap = document.getElementById("filterChips");
-  const all = [`<span class="chip on" data-t="" onclick="setFilter('')">全部</span>`]
-    .concat(Object.entries(FACILITY_TYPES).map(([k,t]) => `<span class="chip" data-t="${k}" onclick="setFilter('${k}')">${t.label}</span>`));
-  wrap.innerHTML = all.join("");
-}
-function setFilter(type){
-  activeFilterType = type || null;
-  document.querySelectorAll("#filterChips .chip").forEach(el => el.classList.toggle("on", el.dataset.t===type));
-  renderList();
-}
-
 function refreshSiteList(){
   const sites = [...new Set(Object.values(records).map(r=>r.site))];
   document.getElementById("siteList").innerHTML = sites.map(s=>`<option value="${s}">`).join("");
@@ -802,7 +858,6 @@ function renderList(){
   const search = (document.getElementById("searchBox")?.value || "").toLowerCase();
   const list = Object.entries(records)
     .filter(([id,r]) => {
-      if(activeFilterType && r.type !== activeFilterType) return false;
       if(search && !(r.site.toLowerCase().includes(search) || (r.notes||"").toLowerCase().includes(search))) return false;
       return true;
     });
@@ -886,7 +941,7 @@ function editRecord(id){
   document.getElementById("f-code").value = r.code || "";
   document.getElementById("f-date").value = r.surveyDate || "";
   updateSessionBar();
-  selectType(r.type);
+  selectGroup(findGroupKey(r.type), r.type);
   Object.entries(r.dims||{}).forEach(([k,v]) => { const el=document.getElementById("dim-"+k); if(el) el.value=v; });
   document.getElementById("f-notes").value = r.notes || "";
   gpsData = r.gps || null;
@@ -955,7 +1010,6 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;",
    初始化
 --------------------------------------------------------------------- */
 buildTypeGrid();
-buildFilterChips();
 document.getElementById("s-date").value = new Date().toISOString().slice(0,10);
 </script>
 </body>
