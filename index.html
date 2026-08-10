@@ -7,6 +7,16 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>現況調查記錄</title>
+<script>
+  // 自動避開瀏覽器/GitHub Pages快取:網址沒有帶版本參數時,自動導向一個帶時間戳記的新網址,
+  // 讓瀏覽器一定要重新跟伺服器要最新內容,不會拿到快取的舊版本。之後不用再手動打?v=數字。
+  (function(){
+    if(location.search.indexOf("_v=") === -1){
+      var sep = location.search ? "&" : "?";
+      location.replace(location.pathname + location.search + sep + "_v=" + Date.now());
+    }
+  })();
+</script>
 
 <!--
   =====================================================================
