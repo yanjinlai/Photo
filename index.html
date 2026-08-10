@@ -112,9 +112,10 @@
   }
   .field-label{font-size:.78rem; font-weight:600; color:var(--ink-soft); margin-bottom:6px; display:block; letter-spacing:.01em;}
   input[type=text], input[type=number], input[type=date], textarea, select{
-    width:100%; padding:10px 11px; border:1.5px solid var(--border); border-radius:7px;
+    width:100%; max-width:100%; padding:10px 11px; border:1.5px solid var(--border); border-radius:7px;
     font-family:'IBM Plex Sans',sans-serif; font-size:.92rem; color:var(--ink); background:#FEFEFD;
   }
+  input[type=date]{ padding:10px 6px; font-size:.85rem; }
   input[type=number]{font-family:'IBM Plex Mono',monospace;}
   textarea{resize:vertical; min-height:60px;}
   .row{display:flex; gap:10px;}
@@ -413,11 +414,11 @@ const FACILITY_TYPES = {
   trapezoid: {
     label: "梯形溝",
     icon: `<svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <polygon points="18,10 42,10 50,36 10,36" stroke="#1F6F68" stroke-width="2.5"/>
-      <line x1="18" y1="4" x2="42" y2="4" stroke="#1F6F68" stroke-width="1"/>
-      <line x1="18" y1="1" x2="18" y2="7" stroke="#1F6F68" stroke-width="1"/>
-      <line x1="42" y1="1" x2="42" y2="7" stroke="#1F6F68" stroke-width="1"/>
-      <line x1="10" y1="40" x2="50" y2="40" stroke="#1F6F68" stroke-width="1"/>
+      <polygon points="10,10 50,10 42,36 18,36" stroke="#1F6F68" stroke-width="2.5"/>
+      <line x1="10" y1="4" x2="50" y2="4" stroke="#1F6F68" stroke-width="1"/>
+      <line x1="10" y1="1" x2="10" y2="7" stroke="#1F6F68" stroke-width="1"/>
+      <line x1="50" y1="1" x2="50" y2="7" stroke="#1F6F68" stroke-width="1"/>
+      <line x1="18" y1="40" x2="42" y2="40" stroke="#1F6F68" stroke-width="1"/>
     </svg>`,
     fields: [
       { key: "bottomWidth", label: "底寬" },
