@@ -144,6 +144,10 @@
     position:absolute; top:2px; right:2px; background:rgba(30,30,30,.75); color:#fff;
     border:none; width:20px; height:20px; border-radius:50%; font-size:.75rem; line-height:1; cursor:pointer;
   }
+  .thumb .rotate-btn{
+    position:absolute; bottom:2px; left:2px; background:rgba(30,30,30,.75); color:#fff;
+    border:none; width:22px; height:22px; border-radius:50%; font-size:.9rem; line-height:1; cursor:pointer;
+  }
 
   /* ---------- 主要按鈕 ---------- */
   .btn-primary{
@@ -353,13 +357,13 @@
    請填入你自己的 Firebase 設定(Firebase Console → 專案設定 → 一般 → 你的應用程式)
    ===================================================================== */
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAM3B_5Ot2M_X5eptAYeGsTJg4Tv2vYTXU",
-  authDomain: "water-soil-tracker.firebaseapp.com",
-  databaseURL: "https://water-soil-tracker-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "water-soil-tracker",
-  storageBucket: "water-soil-tracker.firebasestorage.app",
-  messagingSenderId: "1052261254358",
-  appId: "1:1052261254358:web:eac43a49e40338f678f577"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 firebase.initializeApp(FIREBASE_CONFIG);
@@ -639,17 +643,13 @@ function getLocation(){
 /* ---------------------------------------------------------------------
    照片：讀取(自動依EXIF修正拍攝方向) + 壓縮 + 縮圖
 --------------------------------------------------------------------- */
-async function handleFiles(fileList, alsoSaveLocal){
+async function handleFiles(fileList){
   for(const file of Array.from(fileList)){
     try{
       const source = await loadOrientedImage(file);
       const compressed = drawToDataUrl(source, 1280, 0.7);
       pendingPhotos.push(compressed);
       renderThumbs();
-      if(alsoSaveLocal){
-        const fullQuality = drawToDataUrl(source, 2000, 0.85);
-        saveImageToDevice(fullQuality);
-      }
     }catch(err){
       showToast("照片讀取失敗："+err.message);
     }
@@ -683,11 +683,13 @@ function drawToDataUrl(source, maxW, quality){
   canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL("image/jpeg", quality);
 }
-function saveImageToDevice(dataUrl){
+function saveImageToDevice(file){
   const ts = new Date();
   const pad = n => String(n).padStart(2,"0");
   const filename = `現況調查_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.jpg`;
-  triggerDownload(dataUrl, filename);
+  const url = URL.createObjectURL(file);
+  triggerDownload(url, filename);
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 function triggerDownload(dataUrl, filename){
   const a = document.createElement("a");
@@ -698,17 +700,37 @@ function triggerDownload(dataUrl, filename){
   document.body.removeChild(a);
 }
 document.getElementById("cameraInput").addEventListener("change", e => {
-  handleFiles(e.target.files, document.getElementById("f-save-local").checked);
+  const files = e.target.files;
+  if(document.getElementById("f-save-local").checked){
+    // 先同步觸發存檔(存相機原始檔案,未經壓縮/轉正),盡量緊接在使用者操作之後,減少手機瀏覽器多跳確認的機率
+    Array.from(files).forEach(file => saveImageToDevice(file));
+  }
+  handleFiles(files);
   e.target.value="";
 });
-document.getElementById("galleryInput").addEventListener("change", e => { handleFiles(e.target.files, false); e.target.value=""; });
+document.getElementById("galleryInput").addEventListener("change", e => { handleFiles(e.target.files); e.target.value=""; });
 
 function renderThumbs(){
   document.getElementById("photoThumbs").innerHTML = pendingPhotos.map((p,i) => `
-    <div class="thumb"><img src="${p}"><button class="rm" onclick="removePhoto(${i})">✕</button></div>
+    <div class="thumb"><img src="${p}"><button class="rm" onclick="removePhoto(${i})">✕</button><button class="rotate-btn" onclick="rotatePhoto(${i})">↻</button></div>
   `).join("");
 }
 function removePhoto(i){ pendingPhotos.splice(i,1); renderThumbs(); }
+function rotatePhoto(i){
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.height;
+    canvas.height = img.width;
+    const ctx = canvas.getContext("2d");
+    ctx.translate(canvas.width/2, canvas.height/2);
+    ctx.rotate(Math.PI/2);
+    ctx.drawImage(img, -img.width/2, -img.height/2);
+    pendingPhotos[i] = canvas.toDataURL("image/jpeg", 0.85);
+    renderThumbs();
+  };
+  img.src = pendingPhotos[i];
+}
 
 /* ---------------------------------------------------------------------
    儲存 / 重設表單
