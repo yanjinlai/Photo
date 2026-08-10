@@ -107,7 +107,7 @@
   /* ---------- 卡片 / 通用元件 ---------- */
   .panel{
     background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-    padding:14px; margin-bottom:14px;
+    padding:14px; margin-bottom:14px; overflow:hidden;
     clip-path:polygon(0 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%);
   }
   .field-label{font-size:.78rem; font-weight:600; color:var(--ink-soft); margin-bottom:6px; display:block; letter-spacing:.01em;}
@@ -115,12 +115,15 @@
     width:100%; max-width:100%; padding:10px 11px; border:1.5px solid var(--border); border-radius:7px;
     font-family:'IBM Plex Sans',sans-serif; font-size:.92rem; color:var(--ink); background:#FEFEFD;
   }
-  input[type=date]{ padding:10px 6px; font-size:.85rem; }
+  input[type=date]{
+    padding:10px 6px; font-size:.85rem; box-sizing:border-box;
+    -webkit-appearance:none; appearance:none;
+  }
   input[type=number]{font-family:'IBM Plex Mono',monospace;}
   textarea{resize:vertical; min-height:60px;}
   .row{display:flex; gap:10px;}
   .row > *{flex:1;}
-  .field-group{margin-bottom:12px;}
+  .field-group{margin-bottom:12px; overflow:hidden;}
 
   /* ---------- 設施類型選擇(兩層:大分類→排水溝斷面子類) ---------- */
   .type-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:14px;}
@@ -201,9 +204,12 @@
   .site-group{margin-bottom:20px;}
   .site-group-header{
     font-weight:700; font-size:.9rem; padding-bottom:6px; margin-bottom:10px;
-    border-bottom:1.5px solid var(--ink); display:flex; align-items:baseline; gap:6px;
+    border-bottom:1.5px solid var(--ink); display:flex; align-items:center; justify-content:space-between; gap:6px;
+    cursor:pointer; user-select:none;
   }
+  .site-group-title{display:flex; align-items:baseline; gap:6px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .site-group-count{font-weight:400; color:var(--ink-soft); font-size:.72rem;}
+  .site-group-toggle{color:var(--ink-soft); font-size:.78rem; flex-shrink:0;}
 
   .record-card{
     background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
@@ -539,6 +545,7 @@ let currentGroup = null;
 let pendingPhotos = [];
 let editingId = null;
 let gpsData = null;
+let collapsedSites = new Set();
 
 /* ---------------------------------------------------------------------
    Firebase 連線 / 匿名登入 / 即時同步
@@ -895,12 +902,23 @@ function renderList(){
           </div>
         </div>`;
     }).join("");
+    const collapsed = collapsedSites.has(site);
     return `
       <div class="site-group">
-        <div class="site-group-header">${escapeHtml(site)}<span class="mono site-group-count">(${groups[site].length})</span></div>
-        ${cards}
+        <div class="site-group-header" data-site="${escapeHtml(site)}">
+          <span class="site-group-title">${escapeHtml(site)}<span class="mono site-group-count">(${groups[site].length})</span></span>
+          <span class="site-group-toggle">${collapsed ? "▸" : "▾"}</span>
+        </div>
+        <div class="site-group-body"${collapsed ? ' style="display:none;"' : ""}>${cards}</div>
       </div>`;
   }).join("");
+  container.querySelectorAll(".site-group-header").forEach(el => {
+    el.addEventListener("click", () => toggleSiteGroup(el.dataset.site));
+  });
+}
+function toggleSiteGroup(site){
+  if(collapsedSites.has(site)) collapsedSites.delete(site); else collapsedSites.add(site);
+  renderList();
 }
 
 /* ---------------------------------------------------------------------
