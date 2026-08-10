@@ -178,6 +178,13 @@
   .filter-chips{display:flex; gap:6px; margin-bottom:12px; overflow-x:auto;}
   .filter-chips .chip{white-space:nowrap;}
 
+  .site-group{margin-bottom:20px;}
+  .site-group-header{
+    font-weight:700; font-size:.9rem; padding-bottom:6px; margin-bottom:10px;
+    border-bottom:1.5px solid var(--ink); display:flex; align-items:baseline; gap:6px;
+  }
+  .site-group-count{font-weight:400; color:var(--ink-soft); font-size:.72rem;}
+
   .record-card{
     background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
     padding:12px; margin-bottom:10px; display:flex; gap:12px; cursor:pointer;
@@ -283,24 +290,6 @@
     </div>
 
     <div class="panel">
-      <label class="field-label">材質</label>
-      <select id="f-material">
-        <option value="RC混凝土">RC混凝土</option>
-        <option value="砌石">砌石</option>
-        <option value="PVC管">PVC管</option>
-        <option value="波紋管(HDPE)">波紋管(HDPE)</option>
-        <option value="其他">其他</option>
-      </select>
-      <input type="text" id="f-material-other" placeholder="請說明材質" style="margin-top:8px; display:none;">
-    </div>
-
-    <div class="panel">
-      <label class="field-label">現況狀態(可複選)</label>
-      <div class="chip-wrap" id="conditionChips"></div>
-      <input type="text" id="f-condition-other" placeholder="其他狀況說明" style="margin-top:10px; display:none;">
-    </div>
-
-    <div class="panel">
       <label class="field-label">現場座標(選填)</label>
       <button type="button" class="btn-outline" onclick="getLocation()">📍 取得目前位置</button>
       <div id="gpsResult" class="mono" style="font-size:.8rem; color:var(--ink-soft); margin-top:8px;"></div>
@@ -308,15 +297,9 @@
 
     <div class="panel">
       <label class="field-label">照片</label>
-      <label style="display:flex; align-items:center; gap:7px; font-size:.82rem; color:var(--ink-soft); margin-bottom:10px;">
-        <input type="checkbox" id="f-save-local" checked style="width:16px; height:16px;">
-        📱 拍照時同時存一份到手機
-      </label>
       <div class="photo-actions">
-        <button type="button" class="btn-outline" onclick="document.getElementById('cameraInput').click()">📷 拍照</button>
         <button type="button" class="btn-outline" onclick="document.getElementById('galleryInput').click()">🖼️ 從相簿選取</button>
       </div>
-      <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
       <input type="file" id="galleryInput" accept="image/*" multiple style="display:none;">
       <div class="thumb-grid" id="photoThumbs"></div>
     </div>
@@ -423,6 +406,36 @@ const FACILITY_TYPES = {
     unit: "cm",
     dimText: d => `底${fmt(d.bottomWidth)}/頂${fmt(d.topWidth)}×H${fmt(d.depth)} cm`
   },
+  parabolic: {
+    label: "拋物線形溝",
+    icon: `<svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M10 12 Q30 40 50 12" stroke="#1F6F68" stroke-width="2.5"/>
+      <line x1="10" y1="6" x2="50" y2="6" stroke="#1F6F68" stroke-width="1"/>
+      <line x1="10" y1="3" x2="10" y2="9" stroke="#1F6F68" stroke-width="1"/>
+      <line x1="50" y1="3" x2="50" y2="9" stroke="#1F6F68" stroke-width="1"/>
+    </svg>`,
+    fields: [
+      { key: "topWidth", label: "頂寬" },
+      { key: "depth", label: "溝深 H" }
+    ],
+    unit: "cm",
+    dimText: d => `頂${fmt(d.topWidth)}×H${fmt(d.depth)} cm`
+  },
+  lshape: {
+    label: "Ｌ形溝",
+    icon: `<svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M14 10 L14 36 L50 36 L50 28 L22 28 L22 10 Z" stroke="#1F6F68" stroke-width="2.5" stroke-linejoin="round"/>
+      <line x1="14" y1="4" x2="50" y2="4" stroke="#1F6F68" stroke-width="1"/>
+      <line x1="14" y1="1" x2="14" y2="7" stroke="#1F6F68" stroke-width="1"/>
+      <line x1="50" y1="1" x2="50" y2="7" stroke="#1F6F68" stroke-width="1"/>
+    </svg>`,
+    fields: [
+      { key: "topWidth", label: "頂寬" },
+      { key: "depth", label: "溝深 H" }
+    ],
+    unit: "cm",
+    dimText: d => `頂${fmt(d.topWidth)}×H${fmt(d.depth)} cm`
+  },
   culvert: {
     label: "管涵",
     icon: `<svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -435,6 +448,21 @@ const FACILITY_TYPES = {
     ],
     unit: "cm",
     dimText: d => `Φ${fmt(d.diameter)} cm`
+  },
+  sump: {
+    label: "集水井",
+    icon: `<svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="14" y="8" width="32" height="28" stroke="#1F6F68" stroke-width="2.5"/>
+      <line x1="14" y1="8" x2="46" y2="36" stroke="#1F6F68" stroke-width="1.4"/>
+      <line x1="46" y1="8" x2="14" y2="36" stroke="#1F6F68" stroke-width="1.4"/>
+    </svg>`,
+    fields: [
+      { key: "length", label: "井長/直徑" },
+      { key: "width", label: "井寬", optional: true },
+      { key: "depth", label: "井深" }
+    ],
+    unit: "cm",
+    dimText: d => (d.width ? `L${fmt(d.length)}×W${fmt(d.width)}×H${fmt(d.depth)} cm` : `Φ${fmt(d.length)}×H${fmt(d.depth)} cm`)
   },
   pond: {
     label: "沉砂滯洪池",
@@ -454,24 +482,8 @@ const FACILITY_TYPES = {
     ],
     unit: "m",
     dimText: d => `L${fmt(d.length)}×W${fmt(d.width)}×H${fmt(d.depth)} m`
-  },
-  sump: {
-    label: "集水井",
-    icon: `<svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="14" y="8" width="32" height="28" stroke="#1F6F68" stroke-width="2.5"/>
-      <line x1="14" y1="8" x2="46" y2="36" stroke="#1F6F68" stroke-width="1.4"/>
-      <line x1="46" y1="8" x2="14" y2="36" stroke="#1F6F68" stroke-width="1.4"/>
-    </svg>`,
-    fields: [
-      { key: "length", label: "井長/直徑" },
-      { key: "width", label: "井寬", optional: true },
-      { key: "depth", label: "井深" }
-    ],
-    unit: "cm",
-    dimText: d => (d.width ? `L${fmt(d.length)}×W${fmt(d.width)}×H${fmt(d.depth)} cm` : `Φ${fmt(d.length)}×H${fmt(d.depth)} cm`)
   }
 };
-const CONDITION_OPTIONS = ["良好","輕微淤積","嚴重淤積","破損","龜裂","植生覆蓋","蓋板缺失","其他"];
 function fmt(v){ if(v===undefined||v===null||v==="") return "-"; const n = Number(v); return Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(2))); }
 
 /* ---------------------------------------------------------------------
@@ -480,7 +492,6 @@ function fmt(v){ if(v===undefined||v===null||v==="") return "-"; const n = Numbe
 let records = {};
 let currentType = null;
 let pendingPhotos = [];
-let selectedConditions = new Set();
 let activeFilterType = null;
 let editingId = null;
 let gpsData = null;
@@ -617,24 +628,6 @@ function selectType(key){
 }
 
 /* ---------------------------------------------------------------------
-   材質 / 現況 chips
---------------------------------------------------------------------- */
-document.getElementById("f-material").addEventListener("change", e=>{
-  document.getElementById("f-material-other").style.display = e.target.value==="其他" ? "block":"none";
-});
-function buildConditionChips(){
-  const wrap = document.getElementById("conditionChips");
-  wrap.innerHTML = CONDITION_OPTIONS.map(c => `<span class="chip" data-c="${c}" onclick="toggleCondition('${c}')">${c}</span>`).join("");
-}
-function toggleCondition(c){
-  if(selectedConditions.has(c)) selectedConditions.delete(c); else selectedConditions.add(c);
-  document.querySelectorAll("#conditionChips .chip").forEach(el=>{
-    el.classList.toggle("on", selectedConditions.has(el.dataset.c));
-  });
-  document.getElementById("f-condition-other").style.display = selectedConditions.has("其他") ? "block":"none";
-}
-
-/* ---------------------------------------------------------------------
    GPS
 --------------------------------------------------------------------- */
 function getLocation(){
@@ -694,31 +687,6 @@ function drawToDataUrl(source, maxW, quality){
   canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL("image/jpeg", quality);
 }
-function saveImageToDevice(file){
-  const ts = new Date();
-  const pad = n => String(n).padStart(2,"0");
-  const filename = `現況調查_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.jpg`;
-  const url = URL.createObjectURL(file);
-  triggerDownload(url, filename);
-  setTimeout(() => URL.revokeObjectURL(url), 30000);
-}
-function triggerDownload(dataUrl, filename){
-  const a = document.createElement("a");
-  a.href = dataUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-document.getElementById("cameraInput").addEventListener("change", e => {
-  const files = e.target.files;
-  if(document.getElementById("f-save-local").checked){
-    // 先同步觸發存檔(存相機原始檔案,未經壓縮/轉正),盡量緊接在使用者操作之後,減少手機瀏覽器多跳確認的機率
-    Array.from(files).forEach(file => saveImageToDevice(file));
-  }
-  handleFiles(files);
-  e.target.value="";
-});
 document.getElementById("galleryInput").addEventListener("change", e => { handleFiles(e.target.files); e.target.value=""; });
 
 function renderThumbs(){
@@ -753,18 +721,11 @@ function resetForm(switchToList, restoreSavedSession){
     updateSessionBar();
   }
   document.getElementById("f-code").value = "";
-  document.getElementById("f-material").value = "RC混凝土";
-  document.getElementById("f-material-other").value = "";
-  document.getElementById("f-material-other").style.display = "none";
-  document.getElementById("f-condition-other").value = "";
-  document.getElementById("f-condition-other").style.display = "none";
   document.getElementById("f-notes").value = "";
   document.getElementById("gpsResult").textContent = "";
   gpsData = null;
   pendingPhotos = [];
   renderThumbs();
-  selectedConditions = new Set();
-  document.querySelectorAll("#conditionChips .chip").forEach(el=>el.classList.remove("on"));
   currentType = null;
   document.querySelectorAll(".type-card").forEach(el => el.classList.remove("active"));
   document.getElementById("dimFields").innerHTML = "";
@@ -791,20 +752,12 @@ function saveRecord(){
     if(val) dims[f.key] = parseFloat(val);
   }
 
-  const material = document.getElementById("f-material").value;
-  const materialOther = document.getElementById("f-material-other").value.trim();
-  const conditions = Array.from(selectedConditions);
-  const conditionOther = document.getElementById("f-condition-other").value.trim();
-
   const record = {
     site,
     code: document.getElementById("f-code").value.trim(),
     surveyDate: document.getElementById("f-date").value,
     type: currentType,
     dims,
-    material: material==="其他" ? (materialOther||"其他") : material,
-    conditions,
-    conditionOther,
     notes: document.getElementById("f-notes").value.trim(),
     photos: pendingPhotos,
     gps: gpsData,
@@ -852,27 +805,44 @@ function renderList(){
       if(activeFilterType && r.type !== activeFilterType) return false;
       if(search && !(r.site.toLowerCase().includes(search) || (r.notes||"").toLowerCase().includes(search))) return false;
       return true;
-    })
-    .sort((a,b) => (b[1].createdAt||0) - (a[1].createdAt||0));
+    });
 
   const container = document.getElementById("recordList");
   if(list.length===0){
     container.innerHTML = `<div class="empty-state"><div>尚無符合的記錄</div></div>`;
     return;
   }
-  container.innerHTML = list.map(([id,r]) => {
-    const t = FACILITY_TYPES[r.type];
-    const thumb = r.photos && r.photos[0] ? `<img src="${r.photos[0]}">` : (t?t.icon:"");
-    const statusHtml = (r.conditions||[]).map(c=>`<span>${c}</span>`).join("");
+
+  // 依案件/地點分組
+  const groups = {};
+  list.forEach(([id,r]) => {
+    if(!groups[r.site]) groups[r.site] = [];
+    groups[r.site].push([id,r]);
+  });
+  Object.values(groups).forEach(arr => arr.sort((a,b) => (b[1].createdAt||0) - (a[1].createdAt||0)));
+  const siteNames = Object.keys(groups).sort((a,b) => {
+    const at = Math.max(...groups[a].map(([,r]) => r.createdAt||0));
+    const bt = Math.max(...groups[b].map(([,r]) => r.createdAt||0));
+    return bt - at;
+  });
+
+  container.innerHTML = siteNames.map(site => {
+    const cards = groups[site].map(([id,r]) => {
+      const t = FACILITY_TYPES[r.type];
+      const thumb = r.photos && r.photos[0] ? `<img src="${r.photos[0]}">` : (t?t.icon:"");
+      return `
+        <div class="record-card" onclick="openDetail('${id}')">
+          <div class="thumb0">${thumb}</div>
+          <div class="rc-body">
+            <div class="rc-top"><span class="rc-site">${t?t.label:r.type}${r.code?` <span class="mono" style="color:var(--teal); font-weight:600;">#${escapeHtml(r.code)}</span>`:""}</span><span class="rc-date">${r.surveyDate||""}</span></div>
+            <div class="rc-dims">${t?t.dimText(r.dims||{}):""}</div>
+          </div>
+        </div>`;
+    }).join("");
     return `
-      <div class="record-card" onclick="openDetail('${id}')">
-        <div class="thumb0">${thumb}</div>
-        <div class="rc-body">
-          <div class="rc-top"><span class="rc-site">${escapeHtml(r.site)}${r.code?` <span class="mono" style="color:var(--teal); font-weight:600;">#${escapeHtml(r.code)}</span>`:""}</span><span class="rc-date">${r.surveyDate||""}</span></div>
-          <span class="rc-type">${t?t.label:r.type}</span>
-          <div class="rc-dims">${t?t.dimText(r.dims||{}):""}</div>
-          <div class="rc-status">${statusHtml}</div>
-        </div>
+      <div class="site-group">
+        <div class="site-group-header">${escapeHtml(site)}<span class="mono site-group-count">(${groups[site].length})</span></div>
+        ${cards}
       </div>`;
   }).join("");
 }
@@ -891,8 +861,6 @@ function openDetail(id){
     <h2>${escapeHtml(r.site)}${r.code?` <span class="mono" style="color:var(--teal); font-size:.85rem;">#${escapeHtml(r.code)}</span>`:""}</h2>
     <div class="rc-type" style="margin-bottom:10px;">${t.label} · ${r.surveyDate||""}</div>
     ${dimRows}
-    <div class="detail-row"><span class="k">材質</span>${escapeHtml(r.material||"-")}</div>
-    <div class="detail-row"><span class="k">現況</span>${(r.conditions||[]).join("、")||"-"} ${r.conditionOther?"("+escapeHtml(r.conditionOther)+")":""}</div>
     ${r.gps ? `<div class="detail-row"><span class="k">座標</span><span class="mono">${r.gps.lat.toFixed(6)}, ${r.gps.lng.toFixed(6)}</span></div>` : ""}
     <div class="detail-row"><span class="k">備註</span>${escapeHtml(r.notes||"-")}</div>
     <div class="detail-row"><span class="k">照片</span>${gallery}</div>
@@ -920,12 +888,6 @@ function editRecord(id){
   updateSessionBar();
   selectType(r.type);
   Object.entries(r.dims||{}).forEach(([k,v]) => { const el=document.getElementById("dim-"+k); if(el) el.value=v; });
-  const knownMaterials = ["RC混凝土","砌石","PVC管","波紋管(HDPE)"];
-  if(knownMaterials.includes(r.material)){ document.getElementById("f-material").value = r.material; }
-  else { document.getElementById("f-material").value = "其他"; document.getElementById("f-material-other").value = r.material||""; document.getElementById("f-material-other").style.display="block"; }
-  selectedConditions = new Set(r.conditions||[]);
-  document.querySelectorAll("#conditionChips .chip").forEach(el=>el.classList.toggle("on", selectedConditions.has(el.dataset.c)));
-  if(selectedConditions.has("其他")){ document.getElementById("f-condition-other").style.display="block"; document.getElementById("f-condition-other").value = r.conditionOther||""; }
   document.getElementById("f-notes").value = r.notes || "";
   gpsData = r.gps || null;
   document.getElementById("gpsResult").textContent = gpsData ? `${gpsData.lat.toFixed(6)}, ${gpsData.lng.toFixed(6)}` : "";
@@ -957,7 +919,7 @@ function closeLightbox(e){ if(e) e.stopPropagation(); document.getElementById("l
    CSV 匯出
 --------------------------------------------------------------------- */
 function exportCSV(){
-  const rows = [["編號","案件/地點","設施類型","尺寸","材質","現況","備註","座標","調查日期"]];
+  const rows = [["編號","案件/地點","設施類型","尺寸","備註","座標","調查日期"]];
   Object.values(records).forEach(r => {
     const t = FACILITY_TYPES[r.type];
     rows.push([
@@ -965,8 +927,6 @@ function exportCSV(){
       r.site,
       t?t.label:r.type,
       t?t.dimText(r.dims||{}):"",
-      r.material||"",
-      (r.conditions||[]).join("、"),
       r.notes||"",
       r.gps ? `${r.gps.lat.toFixed(6)}, ${r.gps.lng.toFixed(6)}` : "",
       r.surveyDate||""
@@ -995,7 +955,6 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;",
    初始化
 --------------------------------------------------------------------- */
 buildTypeGrid();
-buildConditionChips();
 buildFilterChips();
 document.getElementById("s-date").value = new Date().toISOString().slice(0,10);
 </script>
