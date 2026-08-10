@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>現況調查記錄</title>
 
 <!--
@@ -481,15 +484,53 @@ firebase.auth().onAuthStateChanged(user => {
   } else {
     firebase.auth().signInAnonymously().catch(err => {
       setConn(false, err.message);
+      scheduleRetryConnect();
     });
   }
 });
-firebase.auth().signInAnonymously().catch(err => setConn(false, err.message));
+firebase.auth().signInAnonymously().catch(err => {
+  setConn(false, err.message);
+  scheduleRetryConnect();
+});
+
+let retryTimer = null;
+let retryDelay = 3000;
+function scheduleRetryConnect(){
+  if(retryTimer) return;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    retryDelay = Math.min(retryDelay * 1.6, 20000);
+    firebase.auth().signInAnonymously().catch(err => {
+      setConn(false, err.message);
+      scheduleRetryConnect();
+    });
+  }, retryDelay);
+}
+// 手機從背景切回來(例如拍照後回到網頁)時,主動檢查一次連線狀態,連線失敗就立刻重試,不用等使用者手動整頁重新整理
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible" && !firebase.auth().currentUser){
+    retryDelay = 3000;
+    firebase.auth().signInAnonymously().catch(err => {
+      setConn(false, err.message);
+      scheduleRetryConnect();
+    });
+  }
+});
 
 function setConn(ok, msg){
   document.getElementById("connDot").className = "dot " + (ok ? "on" : "off");
-  document.getElementById("connText").textContent = ok ? "已連線 · 即時同步中" : ("連線失敗" + (msg?"："+msg:"") + "(請確認 FIREBASE_CONFIG 已填入)");
+  document.getElementById("connText").innerHTML = ok
+    ? "已連線 · 即時同步中"
+    : ("連線失敗" + (msg?"："+msg:"") + "(自動重試中…) " + `<button type="button" onclick="manualRetryConnect()" style="margin-left:6px; padding:2px 8px; border-radius:10px; border:1px solid var(--border); background:#fff; font-size:.7rem; cursor:pointer;">重試</button>`);
 }
+function manualRetryConnect(){
+  retryDelay = 3000;
+  firebase.auth().signInAnonymously().catch(err => {
+    setConn(false, err.message);
+    scheduleRetryConnect();
+  });
+}
+
 
 /* ---------------------------------------------------------------------
    Tab 切換 + 調查工作階段(session)
