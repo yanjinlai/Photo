@@ -226,23 +226,39 @@
 
 <main>
 
-  <!-- ============ 新增 / 編輯 ============ -->
-  <section id="view-add" class="view active">
+  <!-- ============ 開始調查(工作階段設定) ============ -->
+  <section id="view-session" class="view active">
     <div class="panel">
       <div class="field-group">
+        <label class="field-label">調查日期</label>
+        <input type="date" id="s-date">
+      </div>
+      <div class="field-group">
         <label class="field-label">案件 / 調查地點</label>
-        <input type="text" id="f-site" list="siteList" placeholder="例如:○○案 - 排水溝NU3段">
+        <input type="text" id="s-site" list="siteList" placeholder="例如:○○案 - 排水溝NU3段">
         <datalist id="siteList"></datalist>
       </div>
+      <button class="btn-primary" onclick="startSession()">開始調查 →</button>
+    </div>
+  </section>
 
-      <div class="field-group">
-        <label class="field-label">調查日期</label>
-        <input type="date" id="f-date">
+  <!-- ============ 新增 / 編輯 ============ -->
+  <section id="view-add" class="view">
+    <div class="panel" style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px;">
+      <div style="min-width:0;">
+        <div style="font-weight:700; font-size:.95rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="sessionSiteDisplay"></div>
+        <div class="mono" style="font-size:.72rem; color:var(--ink-soft); margin-top:2px;" id="sessionDateDisplay"></div>
       </div>
-      <button type="button" class="btn-secondary" style="margin-top:0;" onclick="resetForm(false, true)">🔄 換案件 / 換日期</button>
+      <button type="button" class="btn-outline" style="flex:0 0 auto; padding:8px 12px; font-size:.78rem;" onclick="goToSession()">🔄 換案件/日期</button>
+      <input type="hidden" id="f-site">
+      <input type="hidden" id="f-date">
     </div>
 
     <div class="panel">
+      <div class="field-group">
+        <label class="field-label">編號</label>
+        <input type="text" id="f-code" placeholder="例如:NU1、A1">
+      </div>
       <label class="field-label">設施類型</label>
       <div class="type-grid" id="typeGrid"></div>
       <div id="dimFields"></div>
@@ -293,7 +309,7 @@
     </div>
 
     <button class="btn-primary" onclick="saveRecord()" id="saveBtn">儲存記錄</button>
-    <button class="btn-secondary" id="cancelEditBtn" style="display:none;" onclick="resetForm(true, true)">取消編輯</button>
+    <button class="btn-secondary" id="cancelEditBtn" style="display:none;" onclick="cancelEdit()">取消編輯</button>
   </section>
 
   <!-- ============ 列表 ============ -->
@@ -334,13 +350,13 @@
    請填入你自己的 Firebase 設定(Firebase Console → 專案設定 → 一般 → 你的應用程式)
    ===================================================================== */
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAM3B_5Ot2M_X5eptAYeGsTJg4Tv2vYTXU",
-  authDomain: "water-soil-tracker.firebaseapp.com",
-  databaseURL: "https://water-soil-tracker-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "water-soil-tracker",
-  storageBucket: "water-soil-tracker.firebasestorage.app",
-  messagingSenderId: "1052261254358",
-  appId: "1:1052261254358:web:eac43a49e40338f678f577"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 firebase.initializeApp(FIREBASE_CONFIG);
@@ -368,7 +384,8 @@ const FACILITY_TYPES = {
       { key: "wallThickness", label: "壁厚", optional: true },
       { key: "coverThickness", label: "蓋板厚度", optional: true }
     ],
-    dimText: d => `W${fmt(d.width)}×H${fmt(d.depth)}`
+    unit: "cm",
+    dimText: d => `W${fmt(d.width)}×H${fmt(d.depth)} cm`
   },
   trapezoid: {
     label: "梯形溝",
@@ -385,7 +402,8 @@ const FACILITY_TYPES = {
       { key: "depth", label: "溝深 H" },
       { key: "slope", label: "邊坡(1:n)", optional: true }
     ],
-    dimText: d => `底${fmt(d.bottomWidth)}/頂${fmt(d.topWidth)}×H${fmt(d.depth)}`
+    unit: "cm",
+    dimText: d => `底${fmt(d.bottomWidth)}/頂${fmt(d.topWidth)}×H${fmt(d.depth)} cm`
   },
   culvert: {
     label: "管涵",
@@ -397,7 +415,8 @@ const FACILITY_TYPES = {
       { key: "diameter", label: "管徑(內徑)" },
       { key: "length", label: "管長", optional: true }
     ],
-    dimText: d => `Φ${fmt(d.diameter)}`
+    unit: "cm",
+    dimText: d => `Φ${fmt(d.diameter)} cm`
   },
   pond: {
     label: "沉砂滯洪池",
@@ -415,7 +434,8 @@ const FACILITY_TYPES = {
       { key: "spillwayLength", label: "溢洪口長度", optional: true },
       { key: "spillwayWidth", label: "溢洪口寬度", optional: true }
     ],
-    dimText: d => `L${fmt(d.length)}×W${fmt(d.width)}×H${fmt(d.depth)}`
+    unit: "m",
+    dimText: d => `L${fmt(d.length)}×W${fmt(d.width)}×H${fmt(d.depth)} m`
   },
   sump: {
     label: "集水井",
@@ -429,11 +449,12 @@ const FACILITY_TYPES = {
       { key: "width", label: "井寬", optional: true },
       { key: "depth", label: "井深" }
     ],
-    dimText: d => d.width ? `L${fmt(d.length)}×W${fmt(d.width)}×H${fmt(d.depth)}` : `Φ${fmt(d.length)}×H${fmt(d.depth)}`
+    unit: "cm",
+    dimText: d => (d.width ? `L${fmt(d.length)}×W${fmt(d.width)}×H${fmt(d.depth)} cm` : `Φ${fmt(d.length)}×H${fmt(d.depth)} cm`)
   }
 };
 const CONDITION_OPTIONS = ["良好","輕微淤積","嚴重淤積","破損","龜裂","植生覆蓋","蓋板缺失","其他"];
-function fmt(v){ if(v===undefined||v===null||v==="") return "-"; return Number(v).toFixed(2); }
+function fmt(v){ if(v===undefined||v===null||v==="") return "-"; const n = Number(v); return Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(2))); }
 
 /* ---------------------------------------------------------------------
    狀態
@@ -471,14 +492,48 @@ function setConn(ok, msg){
 }
 
 /* ---------------------------------------------------------------------
-   Tab 切換
+   Tab 切換 + 調查工作階段(session)
 --------------------------------------------------------------------- */
+let savedSessionSite = null, savedSessionDate = null;
+
 function switchTab(name){
-  document.getElementById("view-add").classList.toggle("active", name==="add");
   document.getElementById("view-list").classList.toggle("active", name==="list");
   document.getElementById("tabAddBtn").classList.toggle("active", name==="add");
   document.getElementById("tabListBtn").classList.toggle("active", name==="list");
-  if(name==="list") renderList();
+  if(name==="list"){
+    document.getElementById("view-session").classList.remove("active");
+    document.getElementById("view-add").classList.remove("active");
+    renderList();
+  } else {
+    if(document.getElementById("f-site").value){
+      document.getElementById("view-session").classList.remove("active");
+      document.getElementById("view-add").classList.add("active");
+    } else {
+      document.getElementById("view-session").classList.add("active");
+      document.getElementById("view-add").classList.remove("active");
+    }
+  }
+}
+function startSession(){
+  const site = document.getElementById("s-site").value.trim();
+  if(!site){ showToast("請輸入案件/地點名稱"); return; }
+  document.getElementById("f-site").value = site;
+  document.getElementById("f-date").value = document.getElementById("s-date").value || new Date().toISOString().slice(0,10);
+  updateSessionBar();
+  document.getElementById("view-session").classList.remove("active");
+  document.getElementById("view-add").classList.add("active");
+  document.getElementById("tabAddBtn").classList.add("active");
+  document.getElementById("tabListBtn").classList.remove("active");
+}
+function goToSession(){
+  document.getElementById("s-site").value = document.getElementById("f-site").value;
+  document.getElementById("s-date").value = document.getElementById("f-date").value;
+  document.getElementById("view-add").classList.remove("active");
+  document.getElementById("view-session").classList.add("active");
+}
+function updateSessionBar(){
+  document.getElementById("sessionSiteDisplay").textContent = document.getElementById("f-site").value || "";
+  document.getElementById("sessionDateDisplay").textContent = document.getElementById("f-date").value || "";
 }
 
 /* ---------------------------------------------------------------------
@@ -496,11 +551,12 @@ function selectType(key){
   document.querySelectorAll(".type-card").forEach(el => el.classList.remove("active"));
   document.getElementById("type-"+key).classList.add("active");
   const t = FACILITY_TYPES[key];
+  const step = t.unit === "cm" ? "1" : "0.01";
   document.getElementById("dimFields").innerHTML = t.fields.map(f => `
     <div class="dim-field">
       <label>${f.label}${f.optional?"":" *"}</label>
-      <input type="number" step="0.01" min="0" id="dim-${f.key}">
-      <span class="unit">m</span>
+      <input type="number" step="${step}" min="0" id="dim-${f.key}">
+      <span class="unit">${t.unit}</span>
     </div>`).join("");
 }
 
@@ -540,45 +596,57 @@ function getLocation(){
 }
 
 /* ---------------------------------------------------------------------
-   照片：壓縮 + 縮圖
+   照片：讀取(自動依EXIF修正拍攝方向) + 壓縮 + 縮圖
 --------------------------------------------------------------------- */
-function handleFiles(fileList, alsoSaveLocal){
-  Array.from(fileList).forEach(file => {
+async function handleFiles(fileList, alsoSaveLocal){
+  for(const file of Array.from(fileList)){
+    try{
+      const source = await loadOrientedImage(file);
+      const compressed = drawToDataUrl(source, 1280, 0.7);
+      pendingPhotos.push(compressed);
+      renderThumbs();
+      if(alsoSaveLocal){
+        const fullQuality = drawToDataUrl(source, 2000, 0.85);
+        saveImageToDevice(fullQuality);
+      }
+    }catch(err){
+      showToast("照片讀取失敗："+err.message);
+    }
+  }
+}
+// 讀取圖片並依照片本身的EXIF方向資訊自動轉正(手機橫向拍攝常見問題)
+async function loadOrientedImage(file){
+  if(window.createImageBitmap){
+    try{
+      return await createImageBitmap(file, {imageOrientation:"from-image"});
+    }catch(e){ /* 部分瀏覽器不支援選項,退回下面的方式 */ }
+  }
+  return await new Promise((resolve,reject) => {
     const reader = new FileReader();
     reader.onload = e => {
       const img = new Image();
-      img.onload = () => {
-        const maxW = 1280;
-        const scale = Math.min(1, maxW / img.width);
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-        pendingPhotos.push(dataUrl);
-        renderThumbs();
-        if(alsoSaveLocal){
-          saveImageToDevice(e.target.result); // 存原始畫質那份,不是壓縮後的
-        }
-      };
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("圖片格式無法讀取"));
       img.src = e.target.result;
     };
+    reader.onerror = () => reject(new Error("檔案讀取失敗"));
     reader.readAsDataURL(file);
   });
+}
+function drawToDataUrl(source, maxW, quality){
+  const w = source.width, h = source.height;
+  const scale = Math.min(1, maxW / w);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", quality);
 }
 function saveImageToDevice(dataUrl){
   const ts = new Date();
   const pad = n => String(n).padStart(2,"0");
   const filename = `現況調查_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.jpg`;
-  fetch(dataUrl).then(r=>r.blob()).then(blob => {
-    const file = new File([blob], filename, {type:"image/jpeg"});
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      // 手機支援分享面板時優先用這個方式:使用者可直接選「儲存影像」存進相簿(iPhone較可靠)
-      navigator.share({files:[file]}).catch(()=>{ triggerDownload(dataUrl, filename); });
-    } else {
-      triggerDownload(dataUrl, filename);
-    }
-  }).catch(()=>{ triggerDownload(dataUrl, filename); });
+  triggerDownload(dataUrl, filename);
 }
 function triggerDownload(dataUrl, filename){
   const a = document.createElement("a");
@@ -604,11 +672,13 @@ function removePhoto(i){ pendingPhotos.splice(i,1); renderThumbs(); }
 /* ---------------------------------------------------------------------
    儲存 / 重設表單
 --------------------------------------------------------------------- */
-function resetForm(switchToList, clearSiteDate){
-  if(clearSiteDate){
-    document.getElementById("f-site").value = "";
-    document.getElementById("f-date").value = new Date().toISOString().slice(0,10);
+function resetForm(switchToList, restoreSavedSession){
+  if(restoreSavedSession){
+    document.getElementById("f-site").value = savedSessionSite || "";
+    document.getElementById("f-date").value = savedSessionDate || "";
+    updateSessionBar();
   }
+  document.getElementById("f-code").value = "";
   document.getElementById("f-material").value = "RC混凝土";
   document.getElementById("f-material-other").value = "";
   document.getElementById("f-material-other").style.display = "none";
@@ -628,6 +698,10 @@ function resetForm(switchToList, clearSiteDate){
   document.getElementById("saveBtn").textContent = "儲存記錄";
   document.getElementById("cancelEditBtn").style.display = "none";
   if(switchToList) switchTab("list");
+}
+
+function cancelEdit(){
+  resetForm(true, true);
 }
 
 function saveRecord(){
@@ -650,6 +724,7 @@ function saveRecord(){
 
   const record = {
     site,
+    code: document.getElementById("f-code").value.trim(),
     surveyDate: document.getElementById("f-date").value,
     type: currentType,
     dims,
@@ -719,7 +794,7 @@ function renderList(){
       <div class="record-card" onclick="openDetail('${id}')">
         <div class="thumb0">${thumb}</div>
         <div class="rc-body">
-          <div class="rc-top"><span class="rc-site">${escapeHtml(r.site)}</span><span class="rc-date">${r.surveyDate||""}</span></div>
+          <div class="rc-top"><span class="rc-site">${escapeHtml(r.site)}${r.code?` <span class="mono" style="color:var(--teal); font-weight:600;">#${escapeHtml(r.code)}</span>`:""}</span><span class="rc-date">${r.surveyDate||""}</span></div>
           <span class="rc-type">${t?t.label:r.type}</span>
           <div class="rc-dims">${t?t.dimText(r.dims||{}):""}</div>
           <div class="rc-status">${statusHtml}</div>
@@ -735,11 +810,11 @@ function openDetail(id){
   const r = records[id];
   const t = FACILITY_TYPES[r.type];
   const dimRows = t.fields.filter(f=>r.dims && r.dims[f.key]!==undefined)
-    .map(f=>`<div class="detail-row"><span class="k">${f.label}</span><span class="mono">${fmt(r.dims[f.key])} m</span></div>`).join("");
+    .map(f=>`<div class="detail-row"><span class="k">${f.label}</span><span class="mono">${fmt(r.dims[f.key])} ${t.unit}</span></div>`).join("");
   const gallery = (r.photos&&r.photos.length) ? `<div class="gallery">${r.photos.map(p=>`<img src="${p}" onclick="openLightbox('${p}')">`).join("")}</div>` : `<div class="detail-row" style="color:var(--ink-soft)">無照片</div>`;
 
   document.getElementById("detailBody").innerHTML = `
-    <h2>${escapeHtml(r.site)}</h2>
+    <h2>${escapeHtml(r.site)}${r.code?` <span class="mono" style="color:var(--teal); font-size:.85rem;">#${escapeHtml(r.code)}</span>`:""}</h2>
     <div class="rc-type" style="margin-bottom:10px;">${t.label} · ${r.surveyDate||""}</div>
     ${dimRows}
     <div class="detail-row"><span class="k">材質</span>${escapeHtml(r.material||"-")}</div>
@@ -757,10 +832,18 @@ function closeDetail(){ document.getElementById("detailModal").classList.remove(
 function editRecord(id){
   const r = records[id];
   closeDetail();
-  switchTab("add");
+  savedSessionSite = document.getElementById("f-site").value;
+  savedSessionDate = document.getElementById("f-date").value;
+  document.getElementById("view-session").classList.remove("active");
+  document.getElementById("view-list").classList.remove("active");
+  document.getElementById("view-add").classList.add("active");
+  document.getElementById("tabAddBtn").classList.add("active");
+  document.getElementById("tabListBtn").classList.remove("active");
   editingId = id;
   document.getElementById("f-site").value = r.site;
+  document.getElementById("f-code").value = r.code || "";
   document.getElementById("f-date").value = r.surveyDate || "";
+  updateSessionBar();
   selectType(r.type);
   Object.entries(r.dims||{}).forEach(([k,v]) => { const el=document.getElementById("dim-"+k); if(el) el.value=v; });
   const knownMaterials = ["RC混凝土","砌石","PVC管","波紋管(HDPE)"];
@@ -800,10 +883,11 @@ function closeLightbox(e){ if(e) e.stopPropagation(); document.getElementById("l
    CSV 匯出
 --------------------------------------------------------------------- */
 function exportCSV(){
-  const rows = [["案件/地點","設施類型","尺寸","材質","現況","備註","座標","調查日期"]];
+  const rows = [["編號","案件/地點","設施類型","尺寸","材質","現況","備註","座標","調查日期"]];
   Object.values(records).forEach(r => {
     const t = FACILITY_TYPES[r.type];
     rows.push([
+      r.code||"",
       r.site,
       t?t.label:r.type,
       t?t.dimText(r.dims||{}):"",
@@ -839,7 +923,7 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;",
 buildTypeGrid();
 buildConditionChips();
 buildFilterChips();
-document.getElementById("f-date").value = new Date().toISOString().slice(0,10);
+document.getElementById("s-date").value = new Date().toISOString().slice(0,10);
 </script>
 </body>
 </html>
